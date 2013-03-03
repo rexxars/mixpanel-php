@@ -22,7 +22,6 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *
- * @package Mixpanel
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
  * @copyright Copyright (c) 2013, Espen Hovlandsdal
  * @license http://www.opensource.org/licenses/mit-license MIT License
@@ -36,7 +35,6 @@ use Mixpanel\Exception\InvalidArgumentException;
 /**
  * PHP Mixpanel tracker
  *
- * @package Mixpanel
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
  * @copyright Copyright (c) 2013, Espen Hovlandsdal
  * @license http://www.opensource.org/licenses/mit-license MIT License
@@ -92,7 +90,7 @@ class Tracker {
      * Constructs a new Mixpanel tracker with a given project token
      *
      * @param string $token Token for the project
-     * @return MixpanelTracker
+     * @return Tracker
      */
     public function __construct($token = null) {
         if (!is_null($token)) {
@@ -104,7 +102,7 @@ class Tracker {
      * Sets the token to identify which project the events belong to
      *
      * @param string $token Token for the project
-     * @return MixpanelTracker
+     * @return Tracker
      */
     public function setToken($token) {
         $this->token = $token;
@@ -148,7 +146,7 @@ class Tracker {
      * Set a distinct ID for the current user
      *
      * @param string $distinctId Distinct ID of the user
-     * @return MixpanelTracker
+     * @return Tracker
      */
     public function identify($distinctId) {
         $this->distinctId = $distinctId;
@@ -160,7 +158,7 @@ class Tracker {
      * Whether to trust proxies x-forwarded-for header
      *
      * @param  boolean $mod True if we should trust the IP sent by HTTP-headers
-     * @return MixpanelTracker
+     * @return Tracker
      */
     public function trustProxy($mod = true) {
         $this->trustProxy = (bool) $mod;
