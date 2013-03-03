@@ -143,6 +143,31 @@ class Tracker {
     }
 
     /**
+     * Determine the best possible request method for this system/setup
+     *
+     * @return string
+     */
+    public function getRequestMethod() {
+        if (!is_null($this->requestMethod)) {
+            return $this->requestMethod;
+        }
+
+        // Try to execute curl (prefered method)
+        exec('curl --version >/dev/null 2>&1', $out, $error);
+        if (!$error) {
+            return $this->setRequestMethod(self::METHOD_CURL_CLI);
+        }
+
+        // Try cURL
+        if (method_exists('curl_init')) {
+            return $this->setRequestMethod(self::METHOD_CURL);
+        }
+
+        // Fall back to socket
+        return $this->setRequestMethod(self::METHOD_SOCKET);
+     }
+
+    /**
      * Set a distinct ID for the current user
      *
      * @param string $distinctId Distinct ID of the user
@@ -155,12 +180,30 @@ class Tracker {
     }
 
     /**
+     * Get the distinct ID for the current user
+     *
+     * @return string|boolean Returns false if no distinct ID has been set
+     */
+    public function getDistinctId() {
+        if (!is_null($this->distinctId)) {
+            return $this->distinctId;
+        }
+
+        $cookie = $this->getCookieProperties();
+        return isset($cookie['distinct_id']) ? $cookie['distinct_id'] : false;
+    }
+
+    /**
      * Whether to trust proxies x-forwarded-for header
      *
      * @param  boolean $mod True if we should trust the IP sent by HTTP-headers
      * @return Tracker
      */
-    public function trustProxy($mod = true) {
+    public function trustProxy($mod = null) {
+        if (is_null($mod)) {
+            return $this->trustProxy;
+        }
+
         $this->trustProxy = (bool) $mod;
 
         return $this;
@@ -234,31 +277,6 @@ class Tracker {
         // Perform request
         return $this->request($url);
     }
-
-    /**
-     * Determine the best possible request method for this system/setup
-     *
-     * @return string
-     */
-    protected function getRequestMethod() {
-        if (!is_null($this->requestMethod)) {
-            return $this->requestMethod;
-        }
-
-        // Try to execute curl (prefered method)
-        exec('curl --version >/dev/null 2>&1', $out, $error);
-        if (!$error) {
-            return $this->setRequestMethod(self::METHOD_CURL_CLI);
-        }
-
-        // Try cURL
-        if (method_exists('curl_init')) {
-            return $this->setRequestMethod(self::METHOD_CURL);
-        }
-
-        // Fall back to socket
-        return $this->setRequestMethod(self::METHOD_SOCKET);
-     }
 
     /**
      * Performs a request against the API using the best possible method
@@ -399,20 +417,6 @@ class Tracker {
         }
 
         return $params ?: array();
-    }
-
-    /**
-     * Get the distinct ID for the current user
-     *
-     * @return string|boolean Returns false if no distinct ID has been set
-     */
-    protected function getDistinctId() {
-        if (!is_null($this->distinctId)) {
-            return $this->distinctId;
-        }
-
-        $cookie = $this->getCookieProperties();
-        return isset($cookie['distinct_id']) ? $cookie['distinct_id'] : false;
     }
 
     /**
