@@ -113,6 +113,15 @@ class Tracker {
     }
 
     /**
+     * Returns the project token
+     *
+     * @return string
+     */
+    public function getToken() {
+        return $this->token;
+    }
+
+    /**
      * Sets the request method to use
      *
      * @param string Method name
