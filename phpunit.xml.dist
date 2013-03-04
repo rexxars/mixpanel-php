@@ -15,6 +15,11 @@
     <log type="testdox-text" target="build/logs/testdox.txt" />
   </logging>
 
+  <php>
+    <const name="MIXPANEL_ENABLE_REQUEST_TESTS" value="false" />
+    <const name="MIXPANEL_REQUEST_TESTS_URL" value="" />
+  </php>
+
   <filter>
     <whitelist addUncoveredFilesFromWhitelist="true">
       <directory suffix=".php">library/Mixpanel</directory>

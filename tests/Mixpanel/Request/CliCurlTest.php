@@ -28,13 +28,21 @@
  * @link https://github.com/rexxars/mixpanel-php
  */
 
-namespace Mixpanel;
+namespace Mixpanel\Request;
 
 /**
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
  */
+class CliCurlTest extends RequestTest {
 
-define('HTTPD_SERVER_PATH', __DIR__ . '/mixpanel-server.php');
+    /**
+     * Set up the request method
+     *
+     */
+    public function setUp() {
+        parent::setUp();
 
-$autoloader = require __DIR__ . '/../vendor/autoload.php';
-$autoloader->add(__NAMESPACE__, __DIR__);
+        $this->method = new CliCurl();
+    }
+
+}

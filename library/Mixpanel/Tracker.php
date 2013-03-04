@@ -30,7 +30,7 @@
 
 namespace Mixpanel;
 
-use Mixpanel\Exception\InvalidArgumentException;
+use Mixpanel\Request\RequestInterface;
 
 /**
  * PHP Mixpanel tracker
@@ -41,15 +41,6 @@ use Mixpanel\Exception\InvalidArgumentException;
  * @link https://github.com/rexxars/mixpanel-php
  */
 class Tracker {
-
-    /**#@+
-     * Internal method identifiers used for requests
-     *
-     * @var string
-     */
-    const METHOD_CURL_CLI = 'curl-cli';
-    const METHOD_CURL     = 'curl';
-    const METHOD_SOCKET   = 'socket';
 
     /**
      * Token used to identify the project
@@ -82,9 +73,27 @@ class Tracker {
     /**
      * The request method to use, based on system/setup
      *
-     * @var string
+     * @var RequestInterface
      */
     protected $requestMethod = null;
+
+    /**
+     * The clients user agent
+     *
+     * @var string
+     */
+    protected $userAgent;
+
+    /**
+     * The preferred request method order
+     *
+     * @var array
+     */
+    protected $requestMethodOrder = array(
+        'Mixpanel\Request\CliCurl',
+        'Mixpanel\Request\Curl',
+        'Mixpanel\Request\Socket',
+    );
 
     /**
      * Constructs a new Mixpanel tracker with a given project token
@@ -122,50 +131,77 @@ class Tracker {
     /**
      * Sets the request method to use
      *
-     * @param string Method name
-     * @throws InvalidArgumentException If request method is unknown
-     * @return string Returns the passed method
+     * @param RequestInterface Request method to use
+     * @return RequestInterface
      */
-    public function setRequestMethod($method) {
-        $methods = array(
-            self::METHOD_CURL,
-            self::METHOD_SOCKET,
-            self::METHOD_CURL_CLI,
-        );
-
-        if (!in_array($method, $methods)) {
-            throw new InvalidArgumentException('Request method unknown: "' . $method . '"');
-        }
-
+    public function setRequestMethod(RequestInterface $method) {
         $this->requestMethod = $method;
 
         return $method;
     }
 
     /**
+     * Set the order of request methods to try
+     *
+     * @param array $order
+     * @return Tracker
+     */
+    public function setRequestMethodOrder(array $order) {
+        $this->requestMethodOrder = $order;
+
+        return $this;
+    }
+
+    /**
      * Determine the best possible request method for this system/setup
      *
-     * @return string
+     * @return RequestInterface
      */
     public function getRequestMethod() {
         if (!is_null($this->requestMethod)) {
             return $this->requestMethod;
         }
 
-        // Try to execute curl (prefered method)
-        exec('curl --version >/dev/null 2>&1', $out, $error);
-        if (!$error) {
-            return $this->setRequestMethod(self::METHOD_CURL_CLI);
+        foreach ($this->requestMethodOrder as $method) {
+            $method = is_string($method) ? new $method() : $method;
+
+            if ($method->isSupported()) {
+                return $this->setRequestMethod($method);
+            }
         }
 
-        // Try cURL
-        if (method_exists('curl_init')) {
-            return $this->setRequestMethod(self::METHOD_CURL);
+        return false;
+    }
+
+    /**
+     * Set the clients user agent
+     *
+     * @param string $ua User agent string to set
+     * @return Tracker
+     */
+    public function setClientUserAgent($ua) {
+        $this->userAgent = $ua;
+
+        return $this;
+    }
+
+    /**
+     * Returns the clients user agent, or a PHP version if not set (CLI-scripts etc)
+     *
+     * @return string
+     */
+    public function getClientUserAgent() {
+        if (!is_null($this->userAgent)) {
+            return $this->userAgent;
         }
 
-        // Fall back to socket
-        return $this->setRequestMethod(self::METHOD_SOCKET);
-     }
+        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : false;
+        $ua = $ua ? $ua : ('PHP ' . phpversion());
+
+        $this->setClientUserAgent($ua);
+
+        return $ua;
+    }
 
     /**
      * Set a distinct ID for the current user
@@ -214,7 +250,8 @@ class Tracker {
      * After aliasing, you should take care to always call identify with the
      * alias instead of relying on the old auto-generated distinct ID
      *
-     * @param  string $alias
+     * @param string $alias
+     * @return boolean
      */
     public function alias($alias) {
         return $this->track('$create_alias', array(
@@ -227,7 +264,7 @@ class Tracker {
      *
      * @param string $event Event name to track
      * @param array $properties Optional properties to track for this event
-     * @return bool
+     * @return boolean
      */
     public function track($event, $properties = array()) {
         // Merge cookie properties, defaults and explicitly passed
@@ -286,74 +323,7 @@ class Tracker {
      */
     protected function request($url) {
         $method = $this->getRequestMethod();
-
-        if ($method == self::METHOD_CURL_CLI) {
-            exec("curl " . escapeshellarg($url) . " >/dev/null 2>&1 &");
-            return true;
-        } else if ($method == self::METHOD_CURL) {
-            return $this->curlRequest($url);
-        } else if ($method == self::METHOD_SOCKET) {
-            return $this->socketRequest($url);
-        }
-
-        return false;
-    }
-
-    /**
-     * Performs a request against the API using the curl module
-     *
-     * @param  string $url
-     * @return boolean
-     */
-    protected function curlRequest($url) {
-        $options = array(
-            CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_URL            => $url,
-        );
-
-        if (defined('CURLOPT_TIMEOUT_MS')) {
-            $options[CURLOPT_TIMEOUT_MS]        = 500;
-            $options[CURLOPT_CONNECTTIMEOUT_MS] = 500;
-        } else {
-            $options[CURLOPT_TIMEOUT]           = 1;
-            $options[CURLOPT_CONNECTTIMEOUT]    = 1;
-        }
-
-        $curl = curl_init();
-        curl_setopt_array($curl, $options);
-        curl_exec($curl);
-        curl_close($curl);
-
-        return true;
-    }
-
-    /**
-     * Performs a request against the API using sockets
-     *
-     * @param  string $url
-     * @return boolean
-     */
-    protected function socketRequest($url) {
-        $fp = fsockopen($this->apiHost, 80, $errno, $errstr, 0.5);
-        if (!$fp) {
-            return false;
-        }
-
-        stream_set_timeout($fp, 0.5);
-
-        $path = preg_replace('#.*?://.*?/#', '/', $url);
-        $out  = "GET " . $path . " HTTP/1.0\r\n";
-        $out .= "Host: " . $this->apiHost . "\r\n";
-        $out .= "Connection: Close\r\n\r\n";
-
-        fwrite($fp, $out);
-        while (!feof($fp)) {
-            fgets($fp, 128);
-        }
-
-        fclose($fp);
-
-        return true;
+        return $method->request($url);
     }
 
     /**
@@ -425,6 +395,8 @@ class Tracker {
      * @return string
      */
     protected function generateUuid() {
+        $ua = $this->getClientUserAgent();
+
         // Ticks entropy
         $ticksEntropy = function() {
             $date = round(microtime() * 1000);
@@ -449,8 +421,7 @@ class Tracker {
         // This function takes the user agent string, and then xors
         // together each sequence of 8 bytes.  This produces a final
         // sequence of 8 bytes which it returns as hex.
-        $uaEntropy = function() {
-            $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+        $uaEntropy = function() use ($ua) {
             $buffer = array();
             $ret = 0;
 
@@ -499,7 +470,7 @@ class Tracker {
      * @return string
      */
     protected function getClientOperatingSystem() {
-        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+        $ua = $this->getClientUserAgent();
 
         if (preg_match('/Windows/i', $ua)) {
             return preg_match('/Phone/', $ua) ? 'Windows Mobile' : 'Windows';
@@ -531,7 +502,7 @@ class Tracker {
      * @return string
      */
     protected function getClientBrowser() {
-        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+        $ua = $this->getClientUserAgent();
 
         if (strpos($ua, 'Opera') !== false) {
             return strpos($ua, 'Mini') ? 'Opera Mini' : 'Opera';
@@ -539,10 +510,10 @@ class Tracker {
             return 'BlackBerry';
         } else if (strpos($ua, 'Chrome') !== false) {
             return 'Chrome';
-        } else if (strpos($ua, 'Apple') !== false && strpos($ua, 'Safari') !== false) {
-            return strpos($ua, 'Mobile') !== false ? 'Mobile Safari' : 'Safari';
         } else if (strpos($ua, 'Android') !== false) {
             return 'Android Mobile';
+        } else if (strpos($ua, 'Apple') !== false && strpos($ua, 'Safari') !== false) {
+            return strpos($ua, 'Mobile') !== false ? 'Mobile Safari' : 'Safari';
         } else if (strpos($ua, 'Konqueror') !== false) {
             return 'Konqueror';
         } else if (strpos($ua, 'Firefox') !== false) {
@@ -567,7 +538,7 @@ class Tracker {
             return empty($clients[0]) ? $_SERVER['REMOTE_ADDR'] : $clients[0];
         }
 
-        return $_SERVER['REMOTE_ADDR'];
+        return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : gethostname();
     }
 
     /**
@@ -589,7 +560,7 @@ class Tracker {
      * @return boolean
      */
     protected function isBlockedUserAgent() {
-        $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+        $ua = $this->getClientUserAgent();
         if (preg_match('/(google web preview|baiduspider|yandexbot)/i', $ua)) {
             return true;
         }

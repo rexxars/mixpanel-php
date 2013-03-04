@@ -28,13 +28,36 @@
  * @link https://github.com/rexxars/mixpanel-php
  */
 
-namespace Mixpanel;
+namespace Mixpanel\Request;
 
 /**
+ * Curl CLI request method
+ *
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
+ * @copyright Copyright (c) 2013, Espen Hovlandsdal
+ * @license http://www.opensource.org/licenses/mit-license MIT License
+ * @link https://github.com/rexxars/mixpanel-php
  */
+class CliCurl implements RequestInterface {
 
-define('HTTPD_SERVER_PATH', __DIR__ . '/mixpanel-server.php');
+    /**
+     * {@inheritdoc}
+     */
+    public function isSupported() {
+        exec('curl --version >/dev/null 2>&1', $out, $error);
+        return $error <= 2;
+    }
 
-$autoloader = require __DIR__ . '/../vendor/autoload.php';
-$autoloader->add(__NAMESPACE__, __DIR__);
+    /**
+     * {@inheritdoc}
+     */
+    public function request($url, $returnResponse = false) {
+        $add = $returnResponse ? '' : ' >/dev/null 2>&1 &';
+        $cmd = 'curl --silent ' . escapeshellarg($url) . $add;
+
+        exec($cmd, $out, $error);
+
+        return $returnResponse ? join(PHP_EOL, $out) : !$error;
+    }
+
+}

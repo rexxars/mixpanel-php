@@ -28,13 +28,42 @@
  * @link https://github.com/rexxars/mixpanel-php
  */
 
-namespace Mixpanel;
+namespace Mixpanel\Request;
 
 /**
+ * Curl request method
+ *
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
+ * @copyright Copyright (c) 2013, Espen Hovlandsdal
+ * @license http://www.opensource.org/licenses/mit-license MIT License
+ * @link https://github.com/rexxars/mixpanel-php
  */
+class Curl implements RequestInterface {
 
-define('HTTPD_SERVER_PATH', __DIR__ . '/mixpanel-server.php');
+    /**
+     * {@inheritdoc}
+     */
+    public function isSupported() {
+        return function_exists('curl_init');
+    }
 
-$autoloader = require __DIR__ . '/../vendor/autoload.php';
-$autoloader->add(__NAMESPACE__, __DIR__);
+    /**
+     * {@inheritdoc}
+     */
+    public function request($url, $returnResponse = false) {
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL            => $url,
+            CURLOPT_HEADER         => 0,
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_TIMEOUT        => 1,
+            CURLOPT_CONNECTTIMEOUT => 1,
+        ));
+
+        $response = curl_exec($curl);
+        curl_close($curl);
+
+        return $returnResponse ? $response : true;
+    }
+
+}

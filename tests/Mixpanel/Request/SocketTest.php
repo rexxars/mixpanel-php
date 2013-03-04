@@ -28,13 +28,31 @@
  * @link https://github.com/rexxars/mixpanel-php
  */
 
-namespace Mixpanel;
+namespace Mixpanel\Request;
 
 /**
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
  */
+class SocketTest extends RequestTest {
 
-define('HTTPD_SERVER_PATH', __DIR__ . '/mixpanel-server.php');
+    /**
+     * Set up the request method
+     *
+     */
+    public function setUp() {
+        parent::setUp();
 
-$autoloader = require __DIR__ . '/../vendor/autoload.php';
-$autoloader->add(__NAMESPACE__, __DIR__);
+        $this->method = new Socket();
+    }
+
+    /**
+     * Test that the request returns false if passed an invalid URL
+     *
+     * @covers Mixpanel\Request\Socket::request
+     */
+    public function testRequestFailsWithInvalidUrl() {
+        $this->assertSame(false, $this->method->request('invalid.com', true));
+        $this->assertSame(false, $this->method->request('http://127.0.127.0:33333/moo', true));
+    }
+
+}

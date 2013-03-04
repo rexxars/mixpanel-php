@@ -28,13 +28,32 @@
  * @link https://github.com/rexxars/mixpanel-php
  */
 
-namespace Mixpanel;
+namespace Mixpanel\Request;
 
 /**
+ * Request interface
+ *
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
+ * @copyright Copyright (c) 2013, Espen Hovlandsdal
+ * @license http://www.opensource.org/licenses/mit-license MIT License
+ * @link https://github.com/rexxars/mixpanel-php
  */
+interface RequestInterface {
 
-define('HTTPD_SERVER_PATH', __DIR__ . '/mixpanel-server.php');
+    /**
+     * Checks if this request method is supported by the system
+     *
+     * @return boolean
+     */
+    function isSupported();
 
-$autoloader = require __DIR__ . '/../vendor/autoload.php';
-$autoloader->add(__NAMESPACE__, __DIR__);
+    /**
+     * Request a resource
+     *
+     * @param string $url The URL to request
+     * @param boolean $returnResponse Whether to return the response of the request or not (slower)
+     * @return boolean
+     */
+    function request($url, $returnResponse = false);
+
+}
