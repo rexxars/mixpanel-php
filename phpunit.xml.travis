@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit colors="true"
+  bootstrap="tests/bootstrap.php">
+  <testsuites>
+    <testsuite name="mixpanel-php test suite">
+      <directory>tests/Mixpanel</directory>
+    </testsuite>
+  </testsuites>
+
+  <php>
+    <const name="MIXPANEL_ENABLE_REQUEST_TESTS" value="true" />
+    <const name="MIXPANEL_REQUEST_TESTS_URL" value="http://localhost:9977" />
+  </php>
+</phpunit>

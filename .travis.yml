@@ -8,4 +8,4 @@ branches:
     - master
 before_script:
     - composer install
-    - composer dumpautoload
+    - cp phpunit.xml.travis phpunit.xml
