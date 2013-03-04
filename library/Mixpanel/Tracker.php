@@ -349,6 +349,11 @@ class Tracker {
      * @return boolean
      */
     public function track($event, $properties = array()) {
+        // Check if the client has sent a blocked user agent
+        if ($this->isBlockedUserAgent()) {
+            return false;
+        }
+
         // Merge cookie properties, defaults and explicitly passed
         $params = array(
             'event'      => $event,
