@@ -54,7 +54,7 @@ class Tracker {
      *
      * @var string
      */
-    protected $distinctId = null;
+    protected $distinctId;
 
     /**
      * Whether to trust proxies x-forwarded-for header
@@ -75,7 +75,7 @@ class Tracker {
      *
      * @var RequestInterface
      */
-    protected $requestMethod = null;
+    protected $requestMethod;
 
     /**
      * The clients user agent
@@ -83,6 +83,27 @@ class Tracker {
      * @var string
      */
     protected $userAgent;
+
+    /**
+     * CookieWriter instance
+     *
+     * @var CookieWriter
+     */
+    protected $cookieWriter;
+
+    /**
+     * UuidGenerator instance
+     *
+     * @var Uuid\GeneratorInterface
+     */
+    protected $uuidGenerator;
+
+    /**
+     * The IP of the client
+     *
+     * @var string
+     */
+    protected $clientIp;
 
     /**
      * The preferred request method order
@@ -204,6 +225,62 @@ class Tracker {
     }
 
     /**
+     * Gets an instance of the UUID generator
+     *
+     * @return Uuid\GeneratorInterface
+     */
+    public function getUuidGenerator() {
+        if (!is_null($this->uuidGenerator)) {
+            return $this->uuidGenerator;
+        }
+
+        $this->setUuidGenerator(new Uuid\Generator());
+        return $this->uuidGenerator;
+    }
+
+    /**
+     * Set UUID generator instance
+     *
+     * @param Uuid\GeneratorInterface $generator
+     * @return Tracker
+     */
+    public function setUuidGenerator(Uuid\GeneratorInterface $generator) {
+        $this->uuidGenerator = $generator;
+
+        return $this;
+    }
+
+    /**
+     * Set client IP address
+     *
+     * @param string $ip
+     * @return Tracker
+     */
+    public function setClientIp($ip) {
+        $this->clientIp = $ip;
+
+        return $this;
+    }
+
+    /**
+     * Returns the clients IP-address
+     *
+     * @return string
+     */
+    public function getClientIp() {
+        if (!is_null($this->clientIp)) {
+            return $this->clientIp;
+        }
+
+        if ($this->trustProxy && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $clients = explode(', ', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            return empty($clients[0]) ? $_SERVER['REMOTE_ADDR'] : $clients[0];
+        }
+
+        return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '127.0.0.1';
+    }
+
+    /**
      * Set a distinct ID for the current user
      *
      * @param string $distinctId Distinct ID of the user
@@ -254,6 +331,11 @@ class Tracker {
      * @return boolean
      */
     public function alias($alias) {
+        // Don't try to create alias when we have nothing to alias it to
+        if ($this->getDistinctId() == false) {
+            return false;
+        }
+
         return $this->track('$create_alias', array(
             'alias' => $alias,
         ));
@@ -302,7 +384,10 @@ class Tracker {
 
         // No distinct ID set, and no cookie found? Create UUID and save it
         if (!isset($params['properties']['distinct_id'])) {
-            $uuid = $this->generateUuid();
+            $ua = $this->getClientUserAgent();
+            $ip = $this->getClientIp();
+
+            $uuid = $this->getUuidGenerator()->generate($ua, $ip);
             $this->identify($uuid);
             $params['properties']['distinct_id'] = $uuid;
             $this->storeUuid();
@@ -312,18 +397,7 @@ class Tracker {
         $url = 'http://' . $this->apiHost . '/track/?data=' . base64_encode(json_encode($params)) . '&ip=1';
 
         // Perform request
-        return $this->request($url);
-    }
-
-    /**
-     * Performs a request against the API using the best possible method
-     *
-     * @param  string $url
-     * @return boolean
-     */
-    protected function request($url) {
-        $method = $this->getRequestMethod();
-        return $method->request($url);
+        return $this->getRequestMethod()->request($url);
     }
 
     /**
@@ -357,12 +431,14 @@ class Tracker {
      * @return boolean
      */
     protected function storeUuid() {
+        $writer = $this->getCookieWriter();
+
         $cookieName = $this->getCookieName();
-        if (isset($_COOKIE[$cookieName]) || headers_sent()) {
+        if (isset($_COOKIE[$cookieName]) || $writer->canSend() == false) {
             return false;
         }
 
-        setcookie(
+        return $writer->setCookie(
             $cookieName,
             json_encode(array('distinct_id' => $this->getDistinctId())),
             time() + (365 * 24 * 60 * 60),
@@ -387,81 +463,6 @@ class Tracker {
         }
 
         return $params ?: array();
-    }
-
-    /**
-     * Generates a UUID based on much of the same logic powering the JS client
-     *
-     * @return string
-     */
-    protected function generateUuid() {
-        $ua = $this->getClientUserAgent();
-
-        // Ticks entropy
-        $ticksEntropy = function() {
-            $date = round(microtime() * 1000);
-            $i = 0;
-
-            // This while loop figures how many ticks go by
-            // before microtime returns a new number, ie the amount
-            // of ticks that go by per millisecond
-            while ($date == round(microtime() * 1000)) {
-                $i++;
-            }
-
-            return base_convert($date, 10, 16) . base_convert($i, 10, 16);
-        };
-
-        // Random entropy
-        $randomEntropy = function() {
-            return base_convert(mt_rand(), 10, 16);
-        };
-
-        // User agent entropy
-        // This function takes the user agent string, and then xors
-        // together each sequence of 8 bytes.  This produces a final
-        // sequence of 8 bytes which it returns as hex.
-        $uaEntropy = function() use ($ua) {
-            $buffer = array();
-            $ret = 0;
-
-            $xor = function($result, $byteArray) use (&$buffer) {
-                $tmp = 0;
-                for ($j = 0; $j < count($byteArray); $j++) {
-                    $tmp = $tmp | ($buffer[$j] << $j * 8);
-                }
-                return $result ^ $tmp;
-            };
-
-            for ($i = 0; $i < strlen($ua); $i++) {
-                $ch = ord($ua[$i]);
-                array_unshift($buffer, $ch & 0xFF);
-                if (count($buffer) >= 4) {
-                    $ret = $xor($ret, $buffer);
-                    $buffer = array();
-                }
-            }
-
-            if (count($buffer) > 0) {
-                $ret = $xor($ret, $buffer);
-            }
-
-            return base_convert($ret, 10, 16);
-        };
-
-        // IP-based entropy (replacement for screen resolution in JS client)
-        $ipEntropy = function($ip) {
-            $ip = preg_replace('/[:.]/', '', $ip);
-            return base_convert(crc32($ip), 10, 16);
-        };
-
-        return implode('-', array(
-            $ticksEntropy(),
-            $randomEntropy(),
-            $uaEntropy(),
-            $ipEntropy($this->getClientIp()),
-            $ticksEntropy()
-        ));
     }
 
     /**
@@ -528,20 +529,6 @@ class Tracker {
     }
 
     /**
-     * Returns the clients IP-address
-     *
-     * @return string
-     */
-    protected function getClientIp() {
-        if ($this->trustProxy && isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $clients = explode(', ', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            return empty($clients[0]) ? $_SERVER['REMOTE_ADDR'] : $clients[0];
-        }
-
-        return isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : gethostname();
-    }
-
-    /**
      * Returns the default properties to send with tracking-request
      *
      * @return array
@@ -566,6 +553,32 @@ class Tracker {
         }
 
         return false;
+    }
+
+    /**
+     * Gets an instance of the cookie writer
+     *
+     * @return CookieWriter
+     */
+    protected function getCookieWriter() {
+        if (!is_null($this->cookieWriter)) {
+            return $this->cookieWriter;
+        }
+
+        $this->setCookieWriter(new CookieWriter());
+        return $this->cookieWriter;
+    }
+
+    /**
+     * Set cookie writer instance
+     *
+     * @param CookieWriter $writer
+     * @return Tracker
+     */
+    protected function setCookieWriter(CookieWriter $writer) {
+        $this->cookieWriter = $writer;
+
+        return $this;
     }
 
 }
