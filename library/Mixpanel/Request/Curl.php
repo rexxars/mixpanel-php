@@ -56,8 +56,8 @@ class Curl implements RequestInterface {
             CURLOPT_URL            => $url,
             CURLOPT_HEADER         => 0,
             CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_TIMEOUT        => 1,
-            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_TIMEOUT        => $returnResponse ? 5 : 1,
+            CURLOPT_CONNECTTIMEOUT => $returnResponse ? 5 : 1,
         ));
 
         $response = curl_exec($curl);
