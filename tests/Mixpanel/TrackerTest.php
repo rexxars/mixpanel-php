@@ -221,6 +221,7 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
     public function testAliasShouldNotBePartOfCookieProperties() {
         $_COOKIE[$this->cookieName] = json_encode(array(
             '__alias' => $this->distinctId,
+            '__mpa'   => array(),
             'age'     => 13,
         ));
 
@@ -229,6 +230,8 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
 
         $params = $method->invoke($this->tracker);
         $this->assertArrayNotHasKey('__alias', $params);
+        $this->assertArrayNotHasKey('__mpa', $params);
+        $this->assertArrayHasKey('age', $params);
     }
 
     /**

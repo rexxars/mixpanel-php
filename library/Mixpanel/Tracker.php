@@ -461,10 +461,14 @@ class Tracker {
         $cookieName = $this->getCookieName();
         $params = false;
         if (isset($_COOKIE[$cookieName])) {
-            $params = json_decode($_COOKIE[$cookieName], true);
+            $params = json_decode($_COOKIE[$cookieName], true) ?: array();
 
-            // Alias should never be included
-            unset($params['__alias']);
+            // Remove all __* properties
+            foreach ($params as $name => $value) {
+                if (strpos($name, '__') === 0) {
+                    unset($params[$name]);
+                }
+            }
         }
 
         return $params ?: array();
