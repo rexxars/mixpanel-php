@@ -30,6 +30,8 @@
 
 namespace Mixpanel\Request;
 
+use ReflectionProperty;
+
 /**
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
  */
@@ -43,6 +45,22 @@ class CurlTest extends RequestTest {
         parent::setUp();
 
         $this->method = new Curl();
+        $this->method->setTimeout(30);
+    }
+
+    /**
+     * Curl method should be able to set a custom timeout
+     *
+     */
+    public function testSetTimeoutSetsCorrectValue() {
+        $property = new ReflectionProperty('Mixpanel\Request\Curl', 'timeout');
+        $property->setAccessible(true);
+
+        $this->method->setTimeout(5);
+        $this->assertSame(5, $property->getValue($this->method));
+
+        $this->method->setTimeout('7');
+        $this->assertSame(7, $property->getValue($this->method));
     }
 
 }

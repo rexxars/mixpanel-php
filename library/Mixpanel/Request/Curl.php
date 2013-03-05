@@ -41,6 +41,25 @@ namespace Mixpanel\Request;
 class Curl implements RequestInterface {
 
     /**
+     * Timeout for requests, in seconds
+     *
+     * @var integer
+     */
+    protected $timeout = 1;
+
+    /**
+     * Set timeout of requests, in seconds
+     *
+     * @param int $timeout Timeout of requests, in seconds
+     * @return Curl
+     */
+    public function setTimeout($timeout) {
+        $this->timeout = (int) $timeout;
+
+        return $this;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function isSupported() {
@@ -56,8 +75,8 @@ class Curl implements RequestInterface {
             CURLOPT_URL            => $url,
             CURLOPT_HEADER         => 0,
             CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_TIMEOUT        => $returnResponse ? 5 : 1,
-            CURLOPT_CONNECTTIMEOUT => $returnResponse ? 5 : 1,
+            CURLOPT_TIMEOUT        => $this->timeout,
+            CURLOPT_CONNECTTIMEOUT => $this->timeout,
         ));
 
         $response = curl_exec($curl);
