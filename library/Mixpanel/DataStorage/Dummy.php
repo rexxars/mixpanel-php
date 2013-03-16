@@ -8,32 +8,36 @@
  * file that was distributed with this source code.
  */
 
-namespace Mixpanel\Request;
+namespace Mixpanel\DataStorage;
 
 /**
- * Request interface
+ * Dummy data storage - will not actually store any data
+ * Use only for "server events", when you do not want to
+ * connect events to a distinct user
  *
  * @author Espen Hovlandsdal <espen@hovlandsdal.com>
  * @copyright Copyright (c) 2013, Espen Hovlandsdal
  * @license http://www.opensource.org/licenses/mit-license MIT License
  * @link https://github.com/rexxars/mixpanel-php
  */
-interface RequestInterface {
+class Dummy extends StorageAbstract implements StorageInterface {
 
     /**
-     * Checks if this request method is supported by the system
-     *
-     * @return boolean
+     * {@inheritdoc}
      */
-    function isSupported();
+    public function getState() {
+        if (is_null($this->state)) {
+            $this->state = array();
+        }
+
+        return $this->state;
+    }
 
     /**
-     * Request a resource
-     *
-     * @param string $url The URL to request
-     * @param boolean $returnResponse Whether to return the response of the request or not (slower)
-     * @return boolean
+     * {@inheritdoc}
      */
-    function request($url, $returnResponse = false);
+    public function storeState() {
+        return $this;
+    }
 
 }
