@@ -1,36 +1,17 @@
 <?php
 /**
- * PHP Mixpanel tracker
+ * This file is part of the mixpanel-php package.
  *
- * Copyright (c) 2013 Espen Hovlandsdal <espen@hovlandsdal.com>
+ * (c) Espen Hovlandsdal <espen@hovlandsdal.com>
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to
- * deal in the Software without restriction, including without limitation the
- * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
- * sell copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * * The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
- * @author Espen Hovlandsdal <espen@hovlandsdal.com>
- * @copyright Copyright (c) 2013, Espen Hovlandsdal
- * @license http://www.opensource.org/licenses/mit-license MIT License
- * @link https://github.com/rexxars/mixpanel-php
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
  */
 
 namespace Mixpanel;
 
-use Mixpanel\Request\RequestInterface;
+use Mixpanel\Request\RequestInterface,
+    Mixpanel\DataStorage\StorageInterface;
 
 /**
  * PHP Mixpanel tracker
@@ -85,11 +66,11 @@ class Tracker {
     protected $userAgent;
 
     /**
-     * CookieWriter instance
+     * DataStorage instance
      *
-     * @var CookieWriter
+     * @var StorageInterface
      */
-    protected $cookieWriter;
+    protected $storage;
 
     /**
      * UuidGenerator instance
@@ -117,14 +98,33 @@ class Tracker {
     );
 
     /**
+     * Configuration options
+     *
+     * @var array
+     */
+    protected $config = array(
+        // Properties
+        'storeGoogle'          => true,
+        'saveReferrer'         => true,
+
+        // Use test-queue?
+        'test'                 => false,
+    );
+
+    /**
      * Constructs a new Mixpanel tracker with a given project token
      *
-     * @param string $token Token for the project
+     * @param  string  $token  Token for the project
+     * @param  array   $config Configuration options
      * @return Tracker
      */
-    public function __construct($token = null) {
+    public function __construct($token = null, $config = null) {
         if (!is_null($token)) {
             $this->setToken($token);
+        }
+
+        if (is_array($config)) {
+            $this->setConfig($config);
         }
     }
 
@@ -147,6 +147,18 @@ class Tracker {
      */
     public function getToken() {
         return $this->token;
+    }
+
+    /**
+     * Set configuration
+     *
+     * @param  array   $config  See README.md for configuration options
+     * @return Tracker
+     */
+    public function setConfig($config) {
+        $this->config = array_merge($this->config, $config);
+
+        return $this;
     }
 
     /**
@@ -289,6 +301,8 @@ class Tracker {
     public function identify($distinctId) {
         $this->distinctId = $distinctId;
 
+        $this->getDataStorage()->setUserUuid($distinctId);
+
         return $this;
     }
 
@@ -297,13 +311,31 @@ class Tracker {
      *
      * @return string|boolean Returns false if no distinct ID has been set
      */
-    public function getDistinctId() {
+    public function getDistinctId($createIfNotSet = true) {
         if (!is_null($this->distinctId)) {
             return $this->distinctId;
         }
 
-        $cookie = $this->getCookieProperties();
-        return isset($cookie['distinct_id']) ? $cookie['distinct_id'] : false;
+        // See if we have a distinct ID for the user in data storage
+        $distinctId = $this->getDataStorage()->get('distinct_id');
+        if ($distinctId) {
+            return $distinctId;
+        }
+
+        if (!$createIfNotSet) {
+            return false;
+        }
+
+        // No user identified and no user is found in datastore
+        // Generate a new UUID for the user
+        $uuid = $this->getUuidGenerator()->generate(
+            $this->getClientUserAgent(),
+            $this->getClientIp()
+        );
+
+        $this->identify($uuid);
+
+        return $uuid;
     }
 
     /**
@@ -327,17 +359,112 @@ class Tracker {
      * After aliasing, you should take care to always call identify with the
      * alias instead of relying on the old auto-generated distinct ID
      *
+     * NOTE: You should take care to only call alias ONCE per user!
+     *
      * @param string $alias
      * @return boolean
      */
     public function alias($alias) {
         // Don't try to create alias when we have nothing to alias it to
-        if ($this->getDistinctId() == false) {
+        if ($this->getDistinctId(false) == false) {
             return false;
         }
 
         return $this->track('$create_alias', array(
             'alias' => $alias,
+        ));
+    }
+
+    /**
+     * Store a persistent set of properties for a user (i.e. super properties).
+     * These properties are automatically included with all events sent by the user.
+     *
+     * @param  array  $properties A dictionary of information about the user to store.
+     *                            This is often information you just learned, such as
+     *                            the user's age or gender, that you'd like to send
+     *                            with later events.
+     * @return Tracker
+     */
+    public function register(array $properties) {
+        $store = $this->getDataStorage();
+
+        foreach ($properties as $key => $value) {
+            $store->set($key, $value);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Store a persistent set of properties about a user (very similar to register()),
+     * but only save them if they haven't been set before. Useful for storing one-time
+     * values, or when you want first-touch attribution.
+     *
+     * @param  array   $properties A dictionary of information about the user to store.
+     *                             This is often information you just learned, such as
+     *                             the user's age or gender, that you'd like to send
+     *                             with later events.
+     * @param  string  $default    If the current value of the super property is this
+     *                             default value (ex: "False", "None") and a different
+     *                             value is set, we will override it. Defaults to "None".
+     * @return Tracker
+     */
+    public function registerOnce(array $properties, $default = 'None') {
+        $store = $this->getDataStorage();
+
+        foreach ($properties as $key => $value) {
+            $store->add($key, $value, $default);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Delete a super property stored on this user, if it exists.
+     *
+     * @param  string  $propertyName The name of the super property to remove.
+     * @return Tracker
+     */
+    public function unregister($propertyName) {
+        $this->getDataStorage()->delete($propertyName);
+
+        return $this;
+    }
+
+    /**
+     * Get the value of a super property by the property name.
+     *
+     * @param  string $propertyName The name of the super property to retrieve.
+     * @return mixed
+     */
+    public function getProperty($propertyName) {
+        return $this->getDataStorage()->get($propertyName);
+    }
+
+    /**
+     * Trigger a pageview event for Streams. Events tracked this way will not be
+     * available on Trends, Funnels or Retention. Only for use with Mixpanel Streams.
+     *
+     * @param  string $page The url of the page to record. If you don't include this,
+     *                      it defaults to the current url.
+     * @return boolean
+     */
+    public function trackPageView($page = null) {
+        if (!preg_match('#^https?://#', $page)) {
+            // Try to build a full URL
+            $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off';
+            $host  = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : false;
+
+            $host  = $host ?: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : false);
+            $page  = $page ?: (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : false);
+
+            $url   = ($https ? 'https' : 'http') . '://' . $host . $page;
+        } else {
+            $url   = $page;
+        }
+
+        return $this->track('mp_page_view', array(
+            'mp_page' => $url
         ));
     }
 
@@ -354,24 +481,37 @@ class Tracker {
             return false;
         }
 
-        // Merge cookie properties, defaults and explicitly passed
+        if (!$this->token) {
+            // No token? Don't track event
+            return false;
+        }
+
+        // Grab search keyword from referrer
+        $this->updateSearchKeyword();
+
+        // Save google campaign info, if the option is not disabled
+        if ($this->config['storeGoogle']) {
+            $this->updateGoogleCampaignInfo();
+        }
+
+        // Save referrer, if the option is not disabled
+        if ($this->config['saveReferrer']) {
+            $this->updateReferrerInfo();
+        }
+
+        // Merge data storage state, defaults and explicitly passed
         $params = array(
             'event'      => $event,
             'properties' => array_merge(
-                $this->getCookieProperties(),
+                $this->getDataStorage()->getState(),
                 $this->getDefaultProperties(),
                 $properties
             ),
         );
 
-        // Make sure we include the project token
+        // Make sure we include the project token if not already set
         if (!isset($params['properties']['token'])) {
-            if ($this->token) {
-                $params['properties']['token'] = $this->token;
-            } else {
-                // No token? Don't track event
-                return false;
-            }
+            $params['properties']['token'] = $this->token;
         }
 
         // If no IP has been explicitly set, fetch it
@@ -382,96 +522,65 @@ class Tracker {
             }
         }
 
-        // If user is identified, send it
-        if (!is_null($this->distinctId)) {
-            $params['properties']['distinct_id'] = $this->distinctId;
+        // Always let the explicitly set properties overwrite
+        if (!isset($properties['distinct_id'])) {
+            $params['properties']['distinct_id'] = $this->getDistinctId();
         }
 
-        // No distinct ID set, and no cookie found? Create UUID and save it
-        if (!isset($params['properties']['distinct_id'])) {
-            $ua = $this->getClientUserAgent();
-            $ip = $this->getClientIp();
-
-            $uuid = $this->getUuidGenerator()->generate($ua, $ip);
-            $this->identify($uuid);
-            $params['properties']['distinct_id'] = $uuid;
-            $this->storeUuid();
-        }
+        // Remove empty properties
+        $params['properties'] = array_filter($params['properties']);
 
         // Build URL and send tracking request in background
-        $url = 'http://' . $this->apiHost . '/track/?data=' . base64_encode(json_encode($params)) . '&ip=1';
+        $getParams = array(
+            'data' => base64_encode(json_encode($params)),
+            'ip'   => 1,
+        );
+
+        // Should we use test-queue?
+        if ($this->config['test']) {
+            $getParams['test'] = 1;
+        }
+
+        $url  = 'http://' . $this->apiHost . '/track/?';
+        $url .= http_build_query($getParams);
 
         // Perform request
         return $this->getRequestMethod()->request($url);
     }
 
     /**
-     * Get the name of the cookie used to store mixpanel data
+     * Gets an instance of a data storage adapter
      *
-     * @return string
+     * @return StorageInterface
      */
-    protected function getCookieName() {
-        return 'mp_' . $this->token . '_mixpanel';
+    public function getDataStorage() {
+        if (!is_null($this->storage)) {
+            return $this->storage;
+        }
+
+        // Use default data storage (cookie-based)
+        $cookie = new DataStorage\Cookie();
+        $cookie->setProjectToken($this->token);
+
+        // Set data storage adapter
+        $this->setDataStorage($cookie);
+
+        // Only set user ID after data storage has been initialized
+        $this->storage->setUserUuid($this->getDistinctId());
+
+        return $this->storage;
     }
 
     /**
-     * Get the domain to set cookie for
+     * Set data storage adapter instance
      *
-     * @return string|null
+     * @param  StorageInterface $storage
+     * @return Tracker
      */
-    protected function getCookieDomain() {
-        $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : false;
-        $host = !$host && isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : $host;
+    public function setDataStorage(StorageInterface $storage) {
+        $this->storage = $storage;
 
-        if (preg_match('/[a-z0-9][a-z0-9\-]+\.[a-z\.]{2,6}$/i', $host, $matches)) {
-            return '.' . $matches[0];
-        }
-
-        return null;
-    }
-
-    /**
-     * Store UUID in cookie (if no UUID is already set)
-     *
-     * @return boolean
-     */
-    protected function storeUuid() {
-        $writer = $this->getCookieWriter();
-
-        $cookieName = $this->getCookieName();
-        if (isset($_COOKIE[$cookieName]) || $writer->canSend() == false) {
-            return false;
-        }
-
-        return $writer->setCookie(
-            $cookieName,
-            json_encode(array('distinct_id' => $this->getDistinctId())),
-            time() + (365 * 24 * 60 * 60),
-            '/',
-            $this->getCookieDomain()
-        );
-    }
-
-    /**
-     * Get the properties stored in cookie
-     *
-     * @return array
-     */
-    protected function getCookieProperties() {
-        $cookieName = $this->getCookieName();
-        $params = false;
-        if (isset($_COOKIE[$cookieName])) {
-            $params = json_decode($_COOKIE[$cookieName], true) ?: array();
-
-            // Remove all __* properties
-            foreach ($params as $name => $value) {
-                if (strpos($name, '__') === 0) {
-                    unset($params[$name]);
-                }
-            }
-        }
-
-        return $params ?: array();
+        return $this;
     }
 
     /**
@@ -538,16 +647,45 @@ class Tracker {
     }
 
     /**
+     * Returns the clients device, if it can be determined
+     *
+     * @return string
+     */
+    protected function getClientDevice() {
+        $ua = $this->getClientUserAgent();
+        if (strpos($ua, 'iPhone') !== false) {
+            return 'iPhone';
+        } else if (strpos($ua, 'iPad') !== false) {
+            return 'iPad';
+        } else if (strpos($ua, 'iPod') !== false) {
+            return 'iPod Touch';
+        } else if (preg_match('/(BlackBerry|PlayBook|BB10)/i', $ua)) {
+            return 'BlackBerry';
+        } else if (stripos($ua, 'Windows Phone') !== false) {
+            return 'Windows Phone';
+        } else if (strpos($ua, 'Android') !== false) {
+            return 'Android';
+        }
+
+        return '';
+    }
+
+    /**
      * Returns the default properties to send with tracking-request
      *
      * @return array
      */
     protected function getDefaultProperties() {
-        return array(
-            '$os'      => $this->getClientOperatingSystem(),
-            '$browser' => $this->getClientBrowser(),
-            'mp_lib'   => 'php',
+        $properties = array(
+            '$os'               => $this->getClientOperatingSystem(),
+            '$browser'          => $this->getClientBrowser(),
+            '$referrer'         => $this->getReferrer(),
+            '$referring_domain' => $this->getReferringDomain(),
+            '$device'           => $this->getClientDevice(),
+            'mp_lib'            => 'php',
         );
+
+        return array_filter($properties);
     }
 
     /**
@@ -565,29 +703,105 @@ class Tracker {
     }
 
     /**
-     * Gets an instance of the cookie writer
+     * Tries to extract search engine name from a URL
      *
-     * @return CookieWriter
+     * @param  string $url The URL to analyze
+     * @return string|null Returns engine name if matched, null otherwise
      */
-    protected function getCookieWriter() {
-        if (!is_null($this->cookieWriter)) {
-            return $this->cookieWriter;
+    protected function getSearchEngineFromUrl($url) {
+        if (empty($url)) {
+            return null;
+        } else if (preg_match('#^https?://(.*)google.([^/?]*)#', $url)) {
+            return 'google';
+        } else if (preg_match('#^https?://(.*)bing.com#', $url)) {
+            return 'bing';
+        } else if (preg_match('#https?://(.*)yahoo.([^/?]*)#', $url)) {
+            return 'yahoo';
+        } else if (preg_match('#https?://(.*)duckduckgo.com#', $url)) {
+            return 'duckduckgo';
         }
 
-        $this->setCookieWriter(new CookieWriter());
-        return $this->cookieWriter;
+        return null;
     }
 
     /**
-     * Set cookie writer instance
+     * Updates search keyword from referrer
      *
-     * @param CookieWriter $writer
      * @return Tracker
      */
-    protected function setCookieWriter(CookieWriter $writer) {
-        $this->cookieWriter = $writer;
+    protected function updateSearchKeyword() {
+        $referrer  = $this->getReferrer();
+        $engine    = $this->getSearchEngineFromUrl($referrer);
 
-        return $this;
+        if (empty($engine)) {
+            return $this;
+        }
+
+        $params    = array('$search_engine' => $engine);
+        $urlParts  = parse_url($referrer);
+        $urlParams = isset($urlParts['query']) ? $urlParts['query'] : '';
+        parse_str($urlParams, $queryParams);
+
+        $param    = ($engine == 'yahoo') ? 'p' : 'q';
+
+        if (!empty($queryParams[$param])) {
+            $params['mp_keyword'] = $queryParams[$param];
+        }
+
+        return $this->register($params);
+    }
+
+    /**
+     * Update Google campaign info
+     *
+     * @return Tracker
+     */
+    protected function updateGoogleCampaignInfo() {
+        $keywords = array('utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term');
+        $params   = array_intersect_key($_GET, array_flip($keywords));
+
+        return $this->registerOnce($params, '');
+    }
+
+    /**
+     * Update initial referrer info
+     *
+     * @return Tracker
+     */
+    protected function updateReferrerInfo() {
+        return $this->registerOnce(array(
+            '$initial_referrer'         => $this->getReferrer()        ?: '$direct',
+            '$initial_referring_domain' => $this->getReferringDomain() ?: '$direct',
+        ), '');
+    }
+
+    /**
+     * Get referrer for this request
+     *
+     * @return string
+     */
+    protected function getReferrer() {
+        return isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : false;
+    }
+
+    /**
+     * Get referring domain for this request
+     *
+     * @return string
+     */
+    protected function getReferringDomain() {
+        $url   = $this->getReferrer();
+
+        if (empty($url)) {
+            return '';
+        }
+
+        $parts = explode('/', $url);
+        if (count($parts) >= 3) {
+            return $parts[2];
+        }
+
+        return '';
     }
 
 }
