@@ -14,5 +14,8 @@ curl -s https://getcomposer.org/installer | php
 php composer.phar create-project rexxars/mixpanel-php [<dir>]
 ```
 
+## Stability
+Not quite production ready - needs some more testing. If you use it and it seems to be working, give me some feedback :-)
+
 ## Usage
 To be documented
