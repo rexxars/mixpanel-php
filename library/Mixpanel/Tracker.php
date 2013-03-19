@@ -379,8 +379,10 @@ class Tracker {
      * @return boolean
      */
     public function alias($alias) {
-        // Don't try to create alias when we have nothing to alias it to
-        if ($this->getDistinctId(false) == false) {
+        // Don't try to create alias when we have nothing to alias it to or
+        // the alias is the same as the distinct ID
+        $distinctId = $this->getDistinctId(false);
+        if ($distinctId == false || $distinctId == $alias) {
             return false;
         }
 
