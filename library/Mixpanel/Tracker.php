@@ -339,6 +339,20 @@ class Tracker {
     }
 
     /**
+     * Provide a string to recognize the user by. The string passed to this
+     * method will appear in the Mixpanel Streams product rather than an
+     * automatically generated name.  Name tags do not have to be unique.
+     *
+     * @param  string $name A human readable name for the user
+     * @return Tracker
+     */
+    public function nameTag($name) {
+        $this->getDataStorage()->set('mp_name_tag', $name);
+
+        return $this;
+    }
+
+    /**
      * Whether to trust proxies x-forwarded-for header
      *
      * @param  boolean $mod True if we should trust the IP sent by HTTP-headers

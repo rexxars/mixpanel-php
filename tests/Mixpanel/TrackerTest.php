@@ -200,6 +200,23 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
+     * The tracker must be able to name-tag a user, setting the passed value in
+     * data store for future tracking-calls
+     *
+     * @covers Mixpanel\Tracker::nameTag
+     */
+    public function testNameTagShouldRegisterValue() {
+        $nameTag = 'Espen Hovlandsdal';
+        $store = $this->initMockDataStore(false);
+        $store->expects($this->once())
+              ->method('set')
+              ->with($this->equalTo('mp_name_tag'), $this->equalTo($nameTag))
+              ->will($this->returnValue(false));
+
+        $this->assertSame($this->tracker, $this->tracker->nameTag($nameTag));
+    }
+
+    /**
      * The tracker should by default not trust proxies
      *
      * @covers Mixpanel\Tracker::trustProxy
