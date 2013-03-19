@@ -533,7 +533,6 @@ class Tracker {
         // Build URL and send tracking request in background
         $getParams = array(
             'data' => base64_encode(json_encode($params)),
-            'ip'   => 1,
         );
 
         // Should we use test-queue?
