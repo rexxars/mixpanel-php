@@ -100,7 +100,7 @@ class StorageAbstractTest extends \PHPUnit_Framework_TestCase {
         $property->setAccessible(true);
 
         $uuid = 'some-uuid';
-        $this->storage->setUserUuid($uuid);
+        $this->assertSame($this->storage, $this->storage->setUserUuid($uuid));
 
         $this->assertSame($uuid, $property->getValue($this->storage));
     }

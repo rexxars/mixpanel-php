@@ -69,6 +69,8 @@ abstract class StorageAbstract implements StorageInterface {
      */
     public function setUserUuid($uuid) {
         $this->userUuid = $uuid;
+
+        return $this;
     }
 
     /**
