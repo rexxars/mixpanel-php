@@ -28,7 +28,7 @@ class CookieTest extends \PHPUnit_Framework_TestCase {
      *
      * @var string
      */
-    protected $cookieName = 'mixpanel_210aa494a3c055025a2e7b0dc6112009_mp';
+    protected $cookieName = 'mp_210aa494a3c055025a2e7b0dc6112009_mixpanel';
 
     /**
      * Project token
@@ -211,7 +211,7 @@ class CookieTest extends \PHPUnit_Framework_TestCase {
      */
     public function testGenerateStorageKeyReturnsCorrectCookieName() {
         $this->assertEquals($this->cookie, $this->cookie->setProjectToken('project-token'));
-        $this->assertSame('mixpanel_project-token_mp', $this->cookie->getStorageKey());
+        $this->assertSame('mp_project-token_mixpanel', $this->cookie->getStorageKey());
     }
 
     /**

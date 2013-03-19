@@ -175,7 +175,7 @@ class Cookie extends StorageAbstract implements StorageInterface {
      * {@inheritdoc}
      */
     protected function generateStorageKey() {
-        return 'mixpanel_' . $this->projectToken . '_mp';
+        return 'mp_' . $this->projectToken . '_mixpanel';
     }
 
     /**
