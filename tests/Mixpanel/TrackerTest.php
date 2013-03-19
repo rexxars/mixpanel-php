@@ -142,6 +142,13 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
      * @covers Mixpanel\Tracker::getDistinctId
      */
     public function testSettingAndGettingUserIdentity() {
+        // Should call setUserUuid on data store
+        $store = $this->initMockDataStore(false);
+        $store->expects($this->once())
+              ->method('setUserUuid')
+              ->with($this->equalTo($this->distinctId))
+              ->will($this->returnValue($store));
+
         $this->assertSame($this->tracker, $this->tracker->identify($this->distinctId));
         $this->assertSame($this->distinctId, $this->tracker->getDistinctId());
     }
@@ -456,6 +463,7 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
     /**
      * Test that we can get a default data storage adapter if none is set
      *
+     * @runInSeparateProcess
      * @covers Mixpanel\Tracker::getDataStorage
      * @covers Mixpanel\Tracker::setDataStorage
      */
@@ -703,6 +711,8 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
      * @covers Mixpanel\Tracker::alias
      */
     public function testAliasWithNoDistinctId() {
+        $this->initMockDataStore(false);
+
         $requester = $this->getMock('Mixpanel\Request\RequestInterface');
         $requester->expects($this->never())
                   ->method('request');
@@ -722,7 +732,7 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
         $this->initMockRequester();
         $this->initMockDataStore();
         $this->tracker->identify($this->distinctId);
-        $this->assertTrue($this->tracker->alias('UserAlias'));
+        $this->assertTrue($this->tracker->alias('SomeUserAlias'));
     }
 
     /**
