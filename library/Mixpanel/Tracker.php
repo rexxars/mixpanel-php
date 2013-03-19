@@ -464,13 +464,12 @@ class Tracker {
      * @return boolean
      */
     public function trackPageView($page = null) {
-        if (!preg_match('#^https?://#', $page)) {
-            // Try to build a full URL
+        if (is_null($page)) {
             $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off';
             $host  = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : false;
 
             $host  = $host ?: (isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : false);
-            $page  = $page ?: (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : false);
+            $page  = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
 
             $url   = ($https ? 'https' : 'http') . '://' . $host . $page;
         } else {

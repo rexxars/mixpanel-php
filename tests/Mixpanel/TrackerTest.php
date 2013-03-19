@@ -687,6 +687,7 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
 
         $_SERVER['HTTPS'] = 'on';
         $_SERVER['SERVER_NAME'] = 'github.com';
+        $_SERVER['REQUEST_URI'] = '/rexxars/mixpanel-php';
 
         $requester = $this->getMock('Mixpanel\Request\RequestInterface');
         $requester->expects($this->once())
@@ -696,9 +697,29 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
 
         $this->tracker->setRequestMethod($requester);
 
-        $this->tracker->trackPageView('/rexxars/mixpanel-php');
+        $this->tracker->trackPageView();
 
-        unset($_SERVER['HTTPS'], $_SERVER['SERVER_NAME']);
+        unset($_SERVER['HTTPS'], $_SERVER['SERVER_NAME'], $_SERVER['REQUEST_URI']);
+    }
+
+    /**
+     * Test that trackPageView() sends passed URLs untouched to mixpanel
+     *
+     * @covers Mixpanel\Tracker::track
+     * @covers Mixpanel\Tracker::trackPageView
+     */
+    public function testTrackPageViewSendsPassedUrlsUntouched() {
+        $this->initMockDataStore();
+
+        $requester = $this->getMock('Mixpanel\Request\RequestInterface');
+        $requester->expects($this->once())
+                  ->method('request')
+                  ->with(new PropertyListContainsKeyValuePair('mp_page', '/rexxars/mixpanel-php'))
+                  ->will($this->returnValue(true));
+
+        $this->tracker->setRequestMethod($requester);
+
+        $this->tracker->trackPageView('/rexxars/mixpanel-php');
     }
 
     /**
