@@ -70,6 +70,12 @@ abstract class StorageAbstract implements StorageInterface {
     public function setUserUuid($uuid) {
         $this->userUuid = $uuid;
 
+        // Only identify the user if the ID does not match current value or alias
+        if ($uuid != $this->get('distinct_id') && $uuid != $this->get('__alias')) {
+            $this->delete('__alias');
+            $this->set('distinct_id', $uuid);
+        }
+
         return $this;
     }
 
@@ -117,8 +123,11 @@ abstract class StorageAbstract implements StorageInterface {
             $this->getState();
         }
 
-        $this->state[$key] = $value;
-        $this->storeState();
+        // Don't call storeState unless value actually changed
+        if ($this->get($key) != $value) {
+            $this->state[$key] = $value;
+            $this->storeState();
+        }
 
         return $this;
     }
@@ -131,6 +140,7 @@ abstract class StorageAbstract implements StorageInterface {
             $this->getState();
         }
 
+        // Don't overwrite values unless they match default value
         if (!empty($this->state[$key]) && $this->state[$key] != $default) {
             return $this;
         }
