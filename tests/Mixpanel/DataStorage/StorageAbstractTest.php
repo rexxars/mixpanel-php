@@ -173,6 +173,22 @@ class StorageAbstractTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
+     * Test that set() can pass the same value as set without errors
+     *
+     * @covers Mixpanel\DataStorage\StorageAbstract::set
+     * @covers Mixpanel\DataStorage\StorageAbstract::get
+     */
+    public function testSetCanPassSameValueAsAlreadySetWithoutError() {
+        $storage = new DummyStorage();
+
+        $this->assertEquals($storage, $storage->set('key', 'value'));
+        $this->assertSame('value', $storage->get('key'));
+
+        $this->assertEquals($storage, $storage->set('key', 'value'));
+        $this->assertSame('value', $storage->get('key'));
+    }
+
+    /**
      * Test that add() can set unset keys
      *
      * @covers Mixpanel\DataStorage\StorageAbstract::add
@@ -230,6 +246,22 @@ class StorageAbstractTest extends \PHPUnit_Framework_TestCase {
 
         $this->assertEquals($storage, $storage->add('age', 24, 'undefined'));
         $this->assertSame(24, $storage->get('age'));
+    }
+
+    /**
+     * Test that add() can pass the same value as set without errors
+     *
+     * @covers Mixpanel\DataStorage\StorageAbstract::add
+     * @covers Mixpanel\DataStorage\StorageAbstract::get
+     */
+    public function testAddCanPassSameValueAsAlreadySetWithoutError() {
+        $storage = new DummyStorage();
+
+        $this->assertEquals($storage, $storage->add('key', 'value'));
+        $this->assertSame('value', $storage->get('key'));
+
+        $this->assertEquals($storage, $storage->add('key', 'value'));
+        $this->assertSame('value', $storage->get('key'));
     }
 
     /**
