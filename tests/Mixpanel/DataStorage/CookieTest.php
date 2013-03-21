@@ -333,6 +333,55 @@ class CookieTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
+     * Test that storeState encodes the cookie data correctly
+     *
+     * @runInSeparateProcess
+     * @covers Mixpanel\DataStorage\Cookie::storeState
+     * @covers Mixpanel\DataStorage\Cookie::setHeader
+     * @covers Mixpanel\DataStorage\Cookie::getStorageKey
+     * @covers Mixpanel\DataStorage\Cookie::getLifetime
+     * @covers Mixpanel\DataStorage\Cookie::getCookiePath
+     * @covers Mixpanel\DataStorage\Cookie::getCookieDomain
+     * @covers Mixpanel\DataStorage\Cookie::getHeaderList
+     */
+    public function testStoreStateEncodesCookieCorrectly() {
+
+        $this->cookie->setLifetime(2592000);
+        $this->cookie->setCookiePath('/some/path');
+        $this->cookie->setCookieDomain('.vg.no');
+
+        $this->cookie->set('date', '2013-03-21 14:05:21');
+        $this->cookie->set('int', 1337);
+        $this->cookie->set('name', 'Espen Hovlandsdal');
+
+        $this->cookie->storeState();
+
+        $method = new ReflectionMethod('Mixpanel\DataStorage\Cookie', 'getHeaderList');
+        $method->setAccessible(true);
+
+        $headers = $method->invoke($this->cookie);
+        $numCookies = 0;
+
+        $regex  = '#^Set-Cookie: ' . preg_quote($this->cookieName) . '=([^;]+); ';
+        $regex .= 'expires=\w+, \d\d-\w+-\d{4} \d\d:\d\d:\d\d \w+; ';
+        $regex .= 'path=/some/path; domain=\.vg\.no$#';
+
+        $matchFound = false;
+        foreach ($headers as $header) {
+            if (preg_match($regex, $header, $matches)) {
+                $matchFound = true;
+                break;
+            }
+        }
+
+        $this->assertTrue($matchFound);
+
+        $expected = '{"date":"2013-03-21 14:05:21","int":1337,"name":"Espen Hovlandsdal"}';
+
+        $this->assertSame($expected, rawurldecode($matches[1]));
+    }
+
+    /**
      * Test that storeState returns the cookie after storing the data
      *
      * @runInSeparateProcess

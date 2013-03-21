@@ -161,7 +161,7 @@ class Cookie extends StorageAbstract implements StorageInterface {
         $domain = $this->getCookieDomain();
 
         $header  = 'Set-Cookie: ' . $cookieName . '=';
-        $header .= urlencode(json_encode($this->getState()));
+        $header .= rawurlencode(json_encode($this->getState()));
         $header .= '; expires=' . $expire;
         $header .= '; path=' . $this->getCookiePath();
 
