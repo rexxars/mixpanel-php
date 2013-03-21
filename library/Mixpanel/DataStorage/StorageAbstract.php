@@ -119,15 +119,15 @@ abstract class StorageAbstract implements StorageInterface {
      * {@inheritdoc}
      */
     public function set($key, $value) {
-        if (is_null($this->state)) {
-            $this->getState();
-        }
+        $current = $this->get($key);
 
         // Don't call storeState unless value actually changed
-        if ($this->get($key) !== $value) {
-            $this->state[$key] = $value;
-            $this->storeState();
+        if ($current == $value) {
+            return $this;
         }
+
+        $this->state[$key] = $value;
+        $this->storeState();
 
         return $this;
     }
@@ -139,7 +139,7 @@ abstract class StorageAbstract implements StorageInterface {
         $current = $this->get($key);
 
         // Don't update if the passed value is the one already set
-        if ($current === $value) {
+        if ($current == $value) {
             return $this;
         }
 

@@ -203,14 +203,6 @@ class StorageAbstractTest extends \PHPUnit_Framework_TestCase {
         $this->assertEquals($storage, $storage->add('foo', 'new value'));
         $this->assertSame('bar', $storage->get('foo'));
 
-        // Try the same with an "empty"-value
-        $this->assertEquals($storage, $storage->set('zero', 0));
-        $this->assertSame(0, $storage->get('zero'));
-
-        // Now try to overwrite the value
-        $this->assertEquals($storage, $storage->add('zero', 0));
-        $this->assertSame(0, $storage->get('zero'));
-
         // Try with add first for a different key, ensure the old value stays as well
         $this->assertEquals($storage, $storage->add('mix', 'panel'));
         $this->assertSame('panel', $storage->get('mix'));
