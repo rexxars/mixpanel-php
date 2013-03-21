@@ -151,8 +151,12 @@ class Cookie extends StorageAbstract implements StorageInterface {
      */
     public function storeState() {
         $cookieName = $this->getStorageKey();
+
+        // Remove old Mixpanel-cookies before sending the new one
         $this->removeCookie($cookieName);
 
+        // We're not using setcookie because we want to be able to unittest
+        // this in a more elegant fashion
         $expire = gmdate('D, d-M-Y H:i:s \G\M\T', time() + $this->getLifetime());
         $domain = $this->getCookieDomain();
 
@@ -164,7 +168,6 @@ class Cookie extends StorageAbstract implements StorageInterface {
         if (!is_null($domain)) {
             $header .= '; domain=' . $domain;
         }
-
 
         $this->setHeader($header);
 
@@ -197,7 +200,7 @@ class Cookie extends StorageAbstract implements StorageInterface {
     protected function setHeader($header) {
         $this->headerList[] = $header;
 
-        header($header);
+        header($header, false);
 
         return $this;
     }
@@ -263,7 +266,6 @@ class Cookie extends StorageAbstract implements StorageInterface {
         // Re-send all non-mixpanel cookies
         foreach ($nonMpCookies as $cookie) {
             $this->setHeader($cookie);
-            header($cookie, false);
         }
 
         return $this;
