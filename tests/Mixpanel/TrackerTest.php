@@ -863,8 +863,8 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
 
         $store = $this->initMockDataStore(false);
         $store->expects($this->exactly(count($data)))
-                  ->method('set')
-                  ->will($this->returnValue($store));
+              ->method('set')
+              ->will($this->returnValue($store));
 
         $this->assertEquals($this->tracker, $this->tracker->register($data));
     }
@@ -884,8 +884,8 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
 
         $store = $this->initMockDataStore(false);
         $store->expects($this->exactly(count($data)))
-                  ->method('add')
-                  ->will($this->returnValue($store));
+              ->method('add')
+              ->will($this->returnValue($store));
 
         $this->assertEquals($this->tracker, $this->tracker->registerOnce($data));
     }
@@ -898,9 +898,9 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
     public function testUnregisterCallsDataStorageDelete() {
         $store = $this->initMockDataStore(false);
         $store->expects($this->once())
-                  ->method('delete')
-                  ->with($this->equalTo('mix'))
-                  ->will($this->returnValue($store));
+              ->method('delete')
+              ->with($this->equalTo('mix'))
+              ->will($this->returnValue($store));
 
         $this->assertEquals($this->tracker, $this->tracker->unregister('mix'));
     }
@@ -913,9 +913,9 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
     public function testGetPropertyCallsDataStorageGet() {
         $store = $this->initMockDataStore(false);
         $store->expects($this->once())
-                  ->method('get')
-                  ->with($this->equalTo('mix'))
-                  ->will($this->returnValue(false));
+              ->method('get')
+              ->with($this->equalTo('mix'))
+              ->will($this->returnValue(false));
 
         $this->assertFalse($this->tracker->getProperty('mix'));
     }
@@ -929,8 +929,8 @@ class TrackerTest extends \PHPUnit_Framework_TestCase {
     public function testUpdateReferrerInfoShouldCallDataStorageAddTwice() {
         $store = $this->initMockDataStore(false);
         $store->expects($this->exactly(2))
-                  ->method('add')
-                  ->will($this->returnValue($store));
+              ->method('add')
+              ->will($this->returnValue($store));
 
         $method = new ReflectionMethod('Mixpanel\Tracker', 'updateReferrerInfo');
         $method->setAccessible(true);
